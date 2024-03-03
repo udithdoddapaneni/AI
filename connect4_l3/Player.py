@@ -1,5 +1,6 @@
 import numpy as np
 import copy
+
 LIMIT = 4
 def generate_moves(board, player_number): ## later try using yield instead of return
     moves = []
@@ -19,18 +20,77 @@ def change_player(player_number):
         return 2
     return 1
 
+def evl(s: str, player_number):
+    ai_value = 0
+    enemy_value = 0
+    if player_number == 1:
+        o = s.count('1111')
+        x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
+        y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
+        z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
+
+        if o > 0:
+            return 1e9, 0
+        ai_value += x*43**2
+        ai_value += y*43
+        ai_value += z
+
+        c = s.count('2222')
+        p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
+        q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
+        r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
+
+        # ai_prevention_score = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
+        # enemy_prevention_score = s.count()
+
+        if c > 0:
+            return 0, 1e9
+        enemy_value += p*43**2
+        enemy_value += q*43
+        enemy_value += r
+
+    else:
+        o = s.count('1111')
+        x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
+        y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
+        z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
+
+        if o > 0:
+            return 0, 1e9
+        enemy_value += x*43**2
+        enemy_value += y*43
+        enemy_value += z
+
+        c = s.count('2222')
+        p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
+        q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
+        r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
+
+        if c > 0:
+            return 1e9, 0
+        ai_value += p*43**2
+        ai_value += q*43
+        ai_value += r
+    
+    return ai_value, enemy_value
+
 def min_move(state, limit, parent_val, ai_player, sign, player_number, depth):
 
     if sign*ai_player.evaluation_function(state) == -1e9:
-        # print('min')
         return -1e9+(43**2)*depth
+    if sign*ai_player.evaluation_function(state) == 1e9:
+        return 1e9-(43**2)*depth
     if limit == LIMIT:
         M = 1e9
         for i in generate_moves(state, player_number):
             m = sign*ai_player.evaluation_function(i)
             M = min(m, M)
-        return M+(43**2)*(depth+1)
-    
+        if M == -1e9:
+            return M+(43**2)*(depth+1)
+        if M == 1e9:
+            return M-(43**2)*(depth+1)
+        return M
+
     M = 1e9
     for i in generate_moves(state, player_number):
         m = max_move(i, limit+1, M, ai_player, -sign, change_player(player_number), depth+1)
@@ -38,19 +98,23 @@ def min_move(state, limit, parent_val, ai_player, sign, player_number, depth):
             M = m
         if M < parent_val:
             break
-    
+
     return M
 
 def max_move(state, limit, parent_val, ai_player, sign, player_number, depth):
 
+    if sign*ai_player.evaluation_function(state) == -1e9:
+        return -1e9+(43**2)*depth
     if sign*ai_player.evaluation_function(state) == 1e9:
-        # print('Max')
         return 1e9-(43**2)*depth
+    
     if limit == LIMIT:
         M = -1e9
         for i in generate_moves(state, player_number):
             m = sign*ai_player.evaluation_function(i)
             M = max(m, M)
+        if M == -1e9:
+            return M+(43**2)*(depth+1)
         if M == 1e9:
             return M-(43**2)*(depth+1)
         return M
@@ -64,6 +128,10 @@ def max_move(state, limit, parent_val, ai_player, sign, player_number, depth):
             break
 
     return M
+
+def print_state(state): # debugging
+    for i in state:
+        print(*i)
 
 class AIPlayer:
     def __init__(self, player_number):
@@ -91,16 +159,21 @@ class AIPlayer:
         RETURNS:
         The 0 based index of the column that represents the next move
         """
-        M = 1e9
+        M = -1e10
         next_state = None
         parent_val = 0
         for state in generate_moves(board, self.player_number):
-            m = max_move(state, 1, M, self, -1, change_player(self.player_number), 0)
-            if m <= M:
+            if self.evaluation_function(state) == 1e9:
+                next_state = state
+                M = 1e9
+                break
+            m = min_move(state, 1, M, self, -1, change_player(self.player_number), 1)
+            print(m)
+            print_state(state)
+            if m > M:
                 M = m
                 next_state = state
-            # if M > parent_val:
-            #     break
+
         for i in range(7):
             for j in range(5, -1, -1):
                 if board[j][i] != next_state[j][i]:
@@ -151,264 +224,51 @@ class AIPlayer:
         RETURNS:
         The utility value for the current board
         """
-        # checking rows
         ai_value = 0
         enemy_value = 0
         for row in np.row_stack(board):
             s = ''.join([str(i) for i in row])
-            if self.player_number == 1:
-                
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    ai_value = max(1e9, ai_value)
-                elif x > 0:
-                    ai_value = max(43**2, ai_value)
-                elif y > 0:
-                    ai_value = max(43, ai_value)
-                elif z > 0:
-                    ai_value = max(1, ai_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    enemy_value = max(1e9, enemy_value)
-                elif p > 0:
-                    enemy_value = max(43**2, enemy_value)
-                elif q > 0:
-                    enemy_value = max(43, enemy_value)
-                elif r > 0:
-                    enemy_value = max(1, enemy_value)
-
-            else:
-
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    enemy_value = max(1e9, enemy_value)
-                elif x > 0:
-                    enemy_value = max(43**2, enemy_value)
-                elif y > 0:
-                    enemy_value = max(43, enemy_value)
-                elif z > 0:
-                    enemy_value = max(1, enemy_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    ai_value = max(1e9, ai_value)
-                elif p > 0:
-                    ai_value = max(43**2, ai_value)
-                elif q > 0:
-                    ai_value = max(43, ai_value)
-                elif r > 0:
-                    ai_value = max(1, ai_value)
+            a,e = evl(s, self.player_number)
+            if a == 1e9:
+                return 1e9
+            if e == 1e9:
+                return -1e9
+            ai_value += a; enemy_value += e
 
         for column in np.column_stack(board):
             s = ''.join([str(i) for i in column])
-            if self.player_number == 1:
-
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    ai_value = max(1e9, ai_value)
-                elif x > 0:
-                    ai_value = max(43**2, ai_value)
-                elif y > 0:
-                    ai_value = max(43, ai_value)
-                elif z > 0:
-                    ai_value = max(1, ai_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    enemy_value = max(1e9, enemy_value)
-                elif p > 0:
-                    enemy_value = max(43**2, enemy_value)
-                elif q > 0:
-                    enemy_value = max(43, enemy_value)
-                elif r > 0:
-                    enemy_value = max(1, enemy_value)
-            
-            else:
-
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    enemy_value = max(1e9, enemy_value)
-                elif x > 0:
-                    enemy_value = max(43**2, enemy_value)
-                elif y > 0:
-                    enemy_value = max(43, enemy_value)
-                elif z > 0:
-                    enemy_value = max(1, enemy_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    ai_value = max(1e9, ai_value)
-                elif p > 0:
-                    ai_value = max(43**2, ai_value)
-                elif q > 0:
-                    ai_value = max(43, ai_value)
-                elif r > 0:
-                    ai_value = max(1, ai_value)
+            a,e = evl(s, self.player_number)
+            if a == 1e9:
+                return 1e9
+            if e == 1e9:
+                return -1e9
+            ai_value += a; enemy_value += e
 
         for i in range(-3, 3):
 
             s = ''.join([str(i) for i in np.diag(board, i)])
-            if self.player_number == 1:
-
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    ai_value = max(1e9, ai_value)
-                elif x > 0:
-                    ai_value = max(43**2, ai_value)
-                elif y > 0:
-                    ai_value = max(43, ai_value)
-                elif z > 0:
-                    ai_value = max(1, ai_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    enemy_value = max(4, enemy_value)
-                elif p > 0:
-                    enemy_value = max(3, enemy_value)
-                elif q > 0:
-                    enemy_value = max(2, enemy_value)
-                elif r > 0:
-                    enemy_value = max(1, enemy_value)
-            
-            else:
-
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    enemy_value = max(1e9, enemy_value)
-                elif x > 0:
-                    enemy_value = max(43**2, enemy_value)
-                elif y > 0:
-                    enemy_value = max(43, enemy_value)
-                elif z > 0:
-                    enemy_value = max(1, enemy_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    ai_value = max(1e9, ai_value)
-                elif p > 0:
-                    ai_value = max(43**2, ai_value)
-                elif q > 0:
-                    ai_value = max(43, ai_value)
-                elif r > 0:
-                    ai_value = max(1, ai_value)
+            a,e = evl(s, self.player_number)
+            if a == 1e9:
+                return 1e9
+            if e == 1e9:
+                return -1e9
+            ai_value += a; enemy_value += e
 
             s = ''.join([str(i) for i in np.diag(np.rot90(board), i)])
-            if self.player_number == 1:
-                
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    ai_value = max(1e9, ai_value)
-                elif x > 0:
-                    ai_value = max(43**2, ai_value)
-                elif y > 0:
-                    ai_value = max(43, ai_value)
-                elif z > 0:
-                    ai_value = max(1, ai_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    enemy_value = max(1e9, enemy_value)
-                elif p > 0:
-                    enemy_value = max(43**2, enemy_value)
-                elif q > 0:
-                    enemy_value = max(43, enemy_value)
-                elif r > 0:
-                    enemy_value = max(1, enemy_value)
-            
-            else:
-
-                o = s.count('1111')
-                x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-                y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-                z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
-
-                if o > 0:
-                    enemy_value = max(1e9, enemy_value)
-                elif x > 0:
-                    enemy_value = max(43**2, enemy_value)
-                elif y > 0:
-                    enemy_value = max(43, enemy_value)
-                elif z > 0:
-                    enemy_value = max(1, enemy_value)
-
-                c = s.count('2222')
-                p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-                q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-                r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-                if c > 0:
-                    ai_value = max(1e9, ai_value)
-                elif p > 0:
-                    ai_value = max(43**2, ai_value)
-                elif q > 0:
-                    ai_value = max(43, ai_value)
-                elif r > 0:
-                    ai_value = max(1, ai_value)
+            a,e = evl(s, self.player_number)
+            if a == 1e9:
+                return 1e9
+            if e == 1e9:
+                return -1e9
+            ai_value += a; enemy_value += e
         
         # if ai_value == 1e9 and enemy_value == 1e9:
         #     print(board)
-                    
         if enemy_value == 1e9:
-            return enemy_value
+            return -enemy_value
         if ai_value == 1e9:
             return ai_value
+    
         return ai_value-enemy_value
 
 class RandomPlayer:
@@ -478,4 +338,3 @@ class HumanPlayer:
             move = int(input('Enter your move: '))
 
         return move
-
