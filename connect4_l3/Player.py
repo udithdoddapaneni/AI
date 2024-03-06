@@ -1,6 +1,8 @@
 import numpy as np
 import copy
 
+
+
 LIMIT = 4
 def generate_moves(board, player_number): ## later try using yield instead of return
     moves = []
@@ -73,6 +75,29 @@ def evl(s: str, player_number):
     
     return ai_value, enemy_value
 
+def expecti_min(state, limit, parent_val, ai_player, sign, player_number, depth):
+
+    if sign*ai_player.evaluation_function(state) == -1e9:
+        return -1e9+(43**2)*depth
+    if sign*ai_player.evaluation_function(state) == 1e9:
+        return 1e9-(43**2)*depth
+    if limit == LIMIT:
+        avg = 0
+        for i in generate_moves(state, player_number):
+            m = sign*ai_player.evaluation_function(i)
+            avg += m/6
+        return avg
+
+    M = 1e9
+    for i in generate_moves(state, player_number):
+        m = expecti_max(i, limit+1, M, ai_player, -sign, change_player(player_number), depth+1)
+        if m < M:
+            M = m
+        if M < parent_val:
+            break
+
+    return M
+
 def min_move(state, limit, parent_val, ai_player, sign, player_number, depth):
 
     if sign*ai_player.evaluation_function(state) == -1e9:
@@ -96,6 +121,30 @@ def min_move(state, limit, parent_val, ai_player, sign, player_number, depth):
         if m < M:
             M = m
         if M < parent_val:
+            break
+
+    return M
+
+def expecti_max(state, limit, parent_val, ai_player, sign, player_number, depth):
+
+    if sign*ai_player.evaluation_function(state) == -1e9:
+        return -1e9+(43**2)*depth
+    if sign*ai_player.evaluation_function(state) == 1e9:
+        return 1e9-(43**2)*depth
+    
+    if limit == LIMIT:
+        avg = 0
+        for i in generate_moves(state, player_number):
+            m = sign*ai_player.evaluation_function(i)
+            avg += m/6
+        return avg
+    
+    M = -1e9
+    for i in generate_moves(state, player_number):
+        m = expecti_min(i, limit+1, M, ai_player, -sign, change_player(player_number), depth+1)
+        if m > M:
+            M = m
+        if M > parent_val:
             break
 
     return M
@@ -167,8 +216,8 @@ class AIPlayer:
                 M = 1e9
                 break
             m = min_move(state, 1, M, self, -1, change_player(self.player_number), 1)
-            print(m)
-            print_state(state)
+            # print(m)
+            # print_state(state)
             if m > M:
                 M = m
                 next_state = state
@@ -200,6 +249,25 @@ class AIPlayer:
         RETURNS:
         The 0 based index of the column that represents the next move
         """
+        M = -1e10
+        next_state = None
+        parent_val = 0
+        for state in generate_moves(board, self.player_number):
+            if self.evaluation_function(state) == 1e9:
+                next_state = state
+                M = 1e9
+                break
+            m = expecti_min(state, 1, M, self, -1, change_player(self.player_number), 1)
+            # print(m)
+            # print_state(state)
+            if m > M:
+                M = m
+                next_state = state
+
+        for i in range(7):
+            for j in range(5, -1, -1):
+                if board[j][i] != next_state[j][i]:
+                    return i
         raise NotImplementedError('Whoops I don\'t know what to do')
 
 
@@ -243,7 +311,7 @@ class AIPlayer:
                 return -1e9
             ai_value += a; enemy_value += e
 
-        for i in range(-3, 3):
+        for i in range(-2, 3):
 
             s = ''.join([str(i) for i in np.diag(board, i)])
             a,e = evl(s, self.player_number)
