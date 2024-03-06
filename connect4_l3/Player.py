@@ -83,12 +83,12 @@ def expecti_min(state, limit, parent_val, ai_player, sign, player_number, depth)
         avg = 0
         for i in generate_moves(state, player_number):
             m = sign*ai_player.evaluation_function(i)
-            avg += m/6
+            avg += m
         return avg
 
     M = 1e9
     for i in generate_moves(state, player_number):
-        m = expecti_max(i, limit+1, M, ai_player, -sign, change_player(player_number), depth+1)
+        m = expecti_max(i, limit+1, M, ai_player, -sign, change_player(player_number), depth+1)/7
         if m < M:
             M = m
         if M < parent_val:
@@ -134,7 +134,7 @@ def expecti_max(state, limit, parent_val, ai_player, sign, player_number, depth)
         avg = 0
         for i in generate_moves(state, player_number):
             m = sign*ai_player.evaluation_function(i)
-            avg += m/6
+            avg += m
         return avg
     
     M = -1e9
@@ -256,8 +256,6 @@ class AIPlayer:
                 M = 1e9
                 break
             m = expecti_min(state, 1, M, self, -1, change_player(self.player_number), 1)
-            # print(m)
-            # print_state(state)
             if m > M:
                 M = m
                 next_state = state
