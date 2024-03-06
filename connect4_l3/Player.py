@@ -4,17 +4,15 @@ import copy
 
 
 LIMIT = 4
+LIMIT = 4
 def generate_moves(board, player_number): ## later try using yield instead of return
-    moves = []
     for i in range(7):
         for j in range(5, -1, -1):
             if board[j][i] == 0:
                 new_board = copy.deepcopy(board)
                 new_board[j][i] = player_number
-                moves.append(new_board)
+                yield new_board
                 break
-
-    return moves
 
 def change_player(player_number):
     if player_number == 1:
