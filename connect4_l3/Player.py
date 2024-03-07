@@ -3,8 +3,38 @@ import copy
 
 
 
-LIMIT = 4
-LIMIT = 4
+LIMIT = 6
+
+def count(s):
+    o = 0
+    x = 0
+    y = 0
+    z = 0
+    c = 0
+    p = 0
+    q = 0
+    r = 0
+    for i in range(len(s)-3):
+        P = s[i:i+4]
+        if P == '1111':
+            o += 1
+        elif P == '1110' or P == '0111' or P == '1011' or P == '1101':
+            x += 1
+        elif P == '1100' or P == '0110' or P == '0011' or P == '1001' or P == '1010' or P == '0101':
+            y += 1
+        elif P == '1000' or P == '0100' or P == '0010' or P == '0001':
+            z += 1
+        elif P == '2222':
+            c += 1
+        elif P == '2220' or P == '0222' or P == '2022' or P == '2202':
+            p += 1
+        elif P == '2200' or P == '0220' or P == '0022' or P == '2002' or P == '2020' or P == '0202':
+            q += 1
+        elif P == '2000' or P == '0200' or P == '0020' or P == '0002':
+            r += 1
+            
+    return o,x,y,z,c,p,q,r
+
 def generate_moves(board, player_number): ## later try using yield instead of return
     for i in range(7):
         for j in range(5, -1, -1):
@@ -14,6 +44,7 @@ def generate_moves(board, player_number): ## later try using yield instead of re
                 yield new_board
                 break
 
+
 def change_player(player_number):
     if player_number == 1:
         return 2
@@ -22,52 +53,36 @@ def change_player(player_number):
 def evl(s: str, player_number):
     ai_value = 0
     enemy_value = 0
+    o,x,y,z,c,p,q,r = count(s)
     if player_number == 1:
-        o = s.count('1111')
-        x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-        y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-        z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
 
         if o > 0:
             return 1e9, 0
-        ai_value += x*43**2
+        ai_value += x*43*43
         ai_value += y*43
         ai_value += z
 
-        c = s.count('2222')
-        p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-        q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-        r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
-        # ai_prevention_score = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-        # enemy_prevention_score = s.count()
+        # ai_prevention_score = (count(s, '2220') + count(s, '0222') + count(s, '2022') + count(s, '2202'))
+        # enemy_prevention_score = count(s, )
 
         if c > 0:
             return 0, 1e9
-        enemy_value += p*43**2
+        
+        enemy_value += p*43*43
         enemy_value += q*43
         enemy_value += r
 
     else:
-        o = s.count('1111')
-        x = (s.count('1110') + s.count('0111') + s.count('1011') + s.count('1101'))
-        y = (s.count('1100') + s.count('0110') + s.count('0011') + s.count('1001') + s.count('1010') + s.count('0101'))
-        z = (s.count('1000') + s.count('0100') + s.count('0010') + s.count('0001'))
 
         if o > 0:
             return 0, 1e9
-        enemy_value += x*43**2
+        enemy_value += x*43*43
         enemy_value += y*43
         enemy_value += z
 
-        c = s.count('2222')
-        p = (s.count('2220') + s.count('0222') + s.count('2022') + s.count('2202'))
-        q = (s.count('2200') + s.count('0220') + s.count('0022') + s.count('2002') + s.count('2020') + s.count('0202'))
-        r = (s.count('2000') + s.count('0200') + s.count('0020') + s.count('0002'))
-
         if c > 0:
             return 1e9, 0
-        ai_value += p*43**2
+        ai_value += p*43*43
         ai_value += q*43
         ai_value += r
     
@@ -76,9 +91,9 @@ def evl(s: str, player_number):
 def expecti_min(state, limit, parent_val, ai_player, sign, player_number, depth):
 
     if sign*ai_player.evaluation_function(state) == -1e9:
-        return -1e9+(43**2)*depth
+        return -1e9+(43*43)*depth
     if sign*ai_player.evaluation_function(state) == 1e9:
-        return 1e9-(43**2)*depth
+        return 1e9-(43*43)*depth
     if limit == LIMIT:
         avg = 0
         for i in generate_moves(state, player_number):
@@ -99,18 +114,18 @@ def expecti_min(state, limit, parent_val, ai_player, sign, player_number, depth)
 def min_move(state, limit, parent_val, ai_player, sign, player_number, depth):
 
     if sign*ai_player.evaluation_function(state) == -1e9:
-        return -1e9+(43**2)*depth
+        return -1e9+(43*43)*depth
     if sign*ai_player.evaluation_function(state) == 1e9:
-        return 1e9-(43**2)*depth
+        return 1e9-(43*43)*depth
     if limit == LIMIT:
         M = 1e9
         for i in generate_moves(state, player_number):
             m = sign*ai_player.evaluation_function(i)
             M = min(m, M)
         if M == -1e9:
-            return M+(43**2)*(depth+1)
+            return M+(43*43)*(depth+1)
         if M == 1e9:
-            return M-(43**2)*(depth+1)
+            return M-(43*43)*(depth+1)
         return M
 
     M = 1e9
@@ -126,9 +141,9 @@ def min_move(state, limit, parent_val, ai_player, sign, player_number, depth):
 def expecti_max(state, limit, parent_val, ai_player, sign, player_number, depth):
 
     if sign*ai_player.evaluation_function(state) == -1e9:
-        return -1e9+(43**2)*depth
+        return -1e9+(43*43)*depth
     if sign*ai_player.evaluation_function(state) == 1e9:
-        return 1e9-(43**2)*depth
+        return 1e9-(43*43)*depth
     
     if limit == LIMIT:
         avg = 0
@@ -150,9 +165,9 @@ def expecti_max(state, limit, parent_val, ai_player, sign, player_number, depth)
 def max_move(state, limit, parent_val, ai_player, sign, player_number, depth):
 
     if sign*ai_player.evaluation_function(state) == -1e9:
-        return -1e9+(43**2)*depth
+        return -1e9+(43*43)*depth
     if sign*ai_player.evaluation_function(state) == 1e9:
-        return 1e9-(43**2)*depth
+        return 1e9-(43*43)*depth
     
     if limit == LIMIT:
         M = -1e9
@@ -160,9 +175,9 @@ def max_move(state, limit, parent_val, ai_player, sign, player_number, depth):
             m = sign*ai_player.evaluation_function(i)
             M = max(m, M)
         if M == -1e9:
-            return M+(43**2)*(depth+1)
+            return M+(43*43)*(depth+1)
         if M == 1e9:
-            return M-(43**2)*(depth+1)
+            return M-(43*43)*(depth+1)
         return M
     
     M = -1e9
