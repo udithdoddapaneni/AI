@@ -1,13 +1,18 @@
 
+import copy
+
 # how to store the tables?
+DEP = 0
+EVD = 1
+TAB = 2
 
 class node:
 
     def __init__(self, variable) -> None:
-        self.variable = variable # variable must be positive
-        self.factor = [] # (case vector, probability)
-        self.parents = [] # parents will be filled later
-        self.children = []
+        self.variable: int = variable # variable must be positive
+        self.factor: list[list[int], int] = [] # (case vector, probability)
+        self.parents: list[node] = [] # parents will be filled later
+        self.children: list[node] = []
 
 
 network: dict[int,node] = {}
@@ -15,6 +20,8 @@ network: dict[int,node] = {}
 def build_table(arr: list[int], i) -> list[list[int]]:
     tab:list[list[int]] = []
     if i == 0:
+        return []
+    if i == 1:
         tab = [[arr[i]], [-arr[i]]]
         return tab
     for j in [1, -1]:
@@ -27,27 +34,33 @@ def build_table(arr: list[int], i) -> list[list[int]]:
 def build_network(data: str):
     global network
 
-    inputs = data.split("\n")
+    inputs:list[str] = data.split("\n")
     n = int(inputs[0])
     i = 1
     while i < len(inputs):
         j = list(map(int, inputs[i].split()))
         curr:node = None
         for k in j:
-            if k in network:
-                continue
-            else:
+            if k not in network:
                 network[k] = node(k)
 
             if k == j[0]:
                 curr = network[k]
-        
+
         for k in j[1:]:
             curr.parents.append(k)
 
         network[curr.variable] = curr
 
-        cases:list[list[int]] = build_table(j, len(j)-1)
+        # cases:list[list[int]] = build_table(j, len(j)-1)
+        cases: list[list[int]] = []
+        if len(j) == 1:
+            cases.append([j[0]])
+            cases.append([-j[0]])
+        else:
+            for g in build_table(j, len(j)-1):
+                cases.append([j[0]]+g)
+                cases.append([-j[0]] + g)
         indx = 0
         for k in range(2**(len(j)-1)):
             p1, p2 = map(float, inputs[i+k+1].split())
@@ -82,26 +95,43 @@ def print_table(L: int|list):
             print(i[len(i)-1])
 
 
-def Reduce(factor: list[list[list[int], int]], variable_value: int) -> list[list[list[int], int]]: # if variable_value is positive then the variable is true, else false
+def Reduce(table: list[list[list[int], int]], variable_values: list[int]) -> list[list[int], int]: # if variable_value is positive then the variable is true, else false
     ans = []
-    for i in factor:
-        for j in i[0]:
-            if j == variable_value:
-                ans.append(i)
-                break
+    for i in table:
+        continue_flag = 0
+        for j in variable_values:
+            if j not in i[0]:
+                continue_flag = 1
+        if continue_flag:
+            continue
+        ans.append(i)
     return ans
 
-def Join(factor1: list[list[list[int], int]], factor2: list[list[list[int], int]]) -> list[list[list[int], int]]: # gives a conjunctive table: P(A/B) * P(B) = P(A, B)
+def Join(table1: list[list[list[int], int]], table2: list[list[list[int], int]]) -> list[list[int], int]: # gives a conjunctive table: P(A/B) * P(B) = P(A, B)
+    if len(table1) == 0:
+        return table2
+    if len(table2) == 0:
+        return table1
     common_elements = set()
-    for i in factor1[0][0]:
-        if i in factor2[0][0]:
-            common_elements.add(i)
-    if len(common_elements) == 0:
-        print("No common elements to join")
-        return
+    for i in table1[0][0]:
+        if i in table2[0][0]:
+            common_elements.add(abs(i))
+    # if len(common_elements) == 0:
+    #     print("No common elements to join")
+    #     return
     ans = []
-    for e1, p1 in factor1:
-        for e2, p2 in factor2:
+    if len(common_elements) == 0:
+        # cartesian product
+        for e1, p1 in table1:
+            for e2, p2 in table2:
+                z = [e1+e2, p1*p2]
+                ans.append(z)
+        # print(ans)
+        # print('hh')
+        return ans
+
+    for e1, p1 in table1:
+        for e2, p2 in table2:
             continue_flag = 0
             cmm_eles = []
             for i in e1:
@@ -122,14 +152,16 @@ def Join(factor1: list[list[list[int], int]], factor2: list[list[list[int], int]
                     z[0][j] = i
                     j += 1
             ans.append(z)
+    # print(ans)
+    # print('jj')
     return ans
 
-def Sum(factor: list[list[list[int], int]], variable: int) -> list[list[list[int], int]]: # factor is a conjunctive table not a conditional probability table
+def Sum(table: list[list[list[int], int]], variables: list[int]) -> list[list[int], int]: # table is a conjunctive table not a conditional probability table
     e_p = {}
-    for e, p in factor:
+    for e, p in table:
         z = []
         for i in e:
-            if abs(i) != variable:
+            if abs(i) not in variables:
                 z.append(i)
         t = tuple(z)
         if t in e_p:
@@ -141,26 +173,251 @@ def Sum(factor: list[list[list[int], int]], variable: int) -> list[list[list[int
     for i in e_p:
         ans[j] = [[k for k in i], e_p[i]]
         j += 1
+    # print(table, variables)
+    if len(ans[0][0]) == 0:
+        return []
     return ans
 
-def Normalize():
-    """ to do """
-    pass
+def Normalize(table: list[list[int], int], evidence: list[list[int], int]) -> list[list[int], int]: # takes joint probability distribution table of given variables and evidences and does normalization
+    ans = []
+    for e1, p1 in table:
+        for e2, p2 in evidence:
+            continue_flag = 0
+            for i in e2:
+                if i not in e1:
+                    continue_flag = 1
+                    break
+            if continue_flag:
+                continue
+            if p1 == 0:
+                ans.append([e1, 0])
+                continue
+            ans.append([e1, p1/p2])
+    if len(ans) == 0:
+        return table
+    return ans
 
-text = """2
+def find_common(table: list[list[int], int], vars: list[int]) -> list[int]:
+    cmm = []
+    k = [abs(i) for  i in table[0][0]]
+    for i in vars:
+        if abs(i) in k:
+            cmm.append(i)
+    return cmm
+
+def get_all_related(ele: int, all_elements: set):
+    global network
+    if ele == None:
+        return
+    all_elements.add(ele)
+    for p in network[ele].parents:
+        get_all_related(p, all_elements)
+
+
+def joint_distribution(req_vars: list[int]):
+    global network
+    all_elements = set()
+    pure_vars = {abs(i) for i in req_vars}
+    for i in pure_vars:
+        get_all_related(i, all_elements)
+        
+    hidden_vars = set()
+    for i in all_elements:
+        if i not in pure_vars:
+            hidden_vars.add(i)
+    
+    query = []
+    for i in all_elements:
+        x = [abs(j) for j in network[i].factor[0][0]]
+        y = find_common(network[i].factor, req_vars)
+        if len(y) > 0:
+            z  = {DEP: {x[0]}, EVD: set(x[1:]), TAB: Reduce(network[i].factor, y)}
+        else:
+            z = {DEP: {x[0]}, EVD: set(x[1:]), TAB: network[i].factor}
+        query.append(z)
+
+    while len(hidden_vars) > 0:
+        x = hidden_vars.pop()
+        f = {DEP: set(), EVD: set(), TAB: []}
+        to_remove_from_query = []
+        for i in query:
+            if len(f[TAB]) == 0:
+                if x in i[DEP] or x in i[EVD]:
+                    f[TAB] = i[TAB]
+                    f[DEP] = i[DEP]
+                    f[EVD] = i[EVD]
+                    to_remove_from_query.append(i)
+                else:
+                    continue
+            else:
+                if len(i[EVD] & f[DEP]) > 0 or len(i[DEP] & f[EVD]) > 0 or len(i[DEP] & f[DEP]) > 0 or len(i[EVD] & f[EVD]) > 0:
+                    stab_dep = copy.deepcopy(f[DEP])
+                    stab_evd = copy.deepcopy(f[EVD])
+                    f[DEP] |= i[DEP]
+                    f[DEP] |= i[EVD] & f[DEP]
+                    f[DEP] |= f[EVD] & i[DEP]
+
+                    f[EVD] |= i[EVD]
+                    f[EVD] -= i[EVD] & stab_dep
+                    f[EVD] -= i[DEP] & stab_evd
+                    f[TAB] = Join(f[TAB], i[TAB])
+                    to_remove_from_query.append(i)
+        
+        # summing out hidden variables
+        if x not in f[EVD]:
+            f[TAB] = Sum(f[TAB], [x])
+
+            if x in f[DEP]:
+                f[DEP].remove(x)
+            elif x in f[EVD]:
+                f[EVD].remove(x)
+        else:
+            hidden_vars.add(x)
+        # removing joined terms
+        for i in to_remove_from_query:
+            query.remove(i)
+        # adding the new factor to the query terms
+        query.append(f)
+
+    if len(query) == 0:
+        return []
+
+    # for i in query:
+    #     print_table(i[TAB])
+    #     print()
+
+    ans = []
+    for i in query:
+        ans = Join(i[TAB], ans)
+    # print(ans[0][1])
+    # print('end')
+    return ans
+
+def variable_elimination(dependents: list[int], evidences: list[int]):
+    global network
+    all_elements = set()
+    req_vars = dependents+evidences
+    
+    full_joint_form = joint_distribution(req_vars)
+    evidence_joint_form = joint_distribution(evidences)
+    # print_table(evidence_joint_form)
+    ans = Normalize(full_joint_form, evidence_joint_form)
+    # print(ans)
+    return ans[0][1]
+
+
+def query_processor(query:str):
+    global network
+    if query[:2] == 've': # variable elimination
+        dependent_str, evidence_str = query[5:].split('e')
+        dependent_eles, evidence_eles = dependent_str.split(), evidence_str.split()
+        dependents = []
+        evidences = []
+        for i in dependent_eles:
+            if i[0] == '~':
+                dependents.append(-int(i[1:]))
+            else:
+                dependents.append(int(i))
+        
+        for i in evidence_eles:
+            if i[0] == '~':
+                evidences.append(-int(i[1:]))
+            else:
+                evidences.append(int(i))
+
+        return variable_elimination(dependents, evidences)
+
+    else:
+        return "Not implemented"
+    
+
+
+def Solve(NetworkFile: str, QueryFile: str):
+    global network
+    network.clear()
+    file = open(NetworkFile, 'r')
+    build_network(file.read().strip())
+    file.close()
+    
+    file = open(QueryFile, 'r')
+    Queries = file.read().strip().split("\n")
+    file.close()
+    for Query in Queries:
+        print(query_processor(Query))
+
+
+
+
+
+def main():
+    NetworkFile = "b3.txt"
+    QueryFile = "q3.txt"
+    Solve(NetworkFile, QueryFile)
+
+# main()
+
+text = """13
 1
-0.1 0.9
-2 1
-0.8 0.2
-0.1 0.9"""
-
+0.98 0.02
+3
+0.999 0.001
+2 1 3
+1 0
+0 1
+0 1
+0 1
+12
+0.999 0.001
+11 1 12
+1 0
+0 1
+0 1
+0 1
+13 11
+1 0
+0 1
+8 12
+1 0
+0 1
+5
+0.9 0.1
+6
+0.5 0.5
+4 2 5 6
+1 0
+0 1
+0 1
+1 0
+0.6 0.4
+0.4 0.6
+0.5 0.5
+1 0
+7 2 5 6
+0 1
+1 0
+1 0
+0 1
+0.4 0.6
+0.2 0.8
+0 1
+0.2 0.8
+10 4 7
+1 0
+1 0
+1 0
+1 0
+9 2
+1 0
+0 1"""
 
 build_network(text)
 
-print_table(Join(network[2].factor, network[1].factor))
+query = "ve q ~2 3 7 e 5"
+# print_table((Join(Reduce(network[3].factor, [3]), network[1].factor)))
+# print()
+# print_table(Reduce(network[2].factor, [-2, 3]))
 
-print('')
-
-print_table(Sum(Join(network[2].factor, network[1].factor), 1))
-
-# print_table(reduce(network[2].factor, 2))
+# print_table(network[6].factor)
+# query = "ve q ~2 3 7 ~6 5 e"
+z = query_processor(query)
+print(z)
