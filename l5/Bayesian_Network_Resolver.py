@@ -20,13 +20,13 @@ network: dict[int,node] = {}
 
 def build_table(arr: list[int], i) -> list[list[int]]:
     tab:list[list[int]] = []
-    if i == 0:
+    if i == len(arr):
         return []
-    if i == 1:
+    if i == len(arr)-1:
         tab = [[arr[i]], [-arr[i]]]
         return tab
     for j in [1, -1]:
-        for k in build_table(arr, i-1):
+        for k in build_table(arr, i+1):
             z = [j*arr[i]] + k
             tab.append(z)
     return tab
@@ -59,7 +59,7 @@ def build_network(data: str):
             cases.append([j[0]])
             cases.append([-j[0]])
         else:
-            for g in build_table(j, len(j)-1):
+            for g in build_table(j, 1):
                 cases.append([j[0]]+g)
                 cases.append([-j[0]] + g)
         indx = 0
@@ -499,8 +499,8 @@ def enumeration_method(dependents, evidences): # for verification
 
 
 def main():
-    NetworkFile = "b3.txt"
-    QueryFile = "q3.txt"
+    NetworkFile = "b2.txt"
+    QueryFile = "q2.txt"
     Solve(NetworkFile, QueryFile)
 
 
