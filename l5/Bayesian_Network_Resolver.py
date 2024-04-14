@@ -222,8 +222,8 @@ def joint_distribution(req_vars: list[int]):
     global network
     all_elements = set()
     pure_vars = {abs(i) for i in req_vars}
-    for i in pure_vars:
-        get_all_related(i, all_elements)
+    for i in network:
+        all_elements.add(i)
         
     hidden_vars = set()
     for i in all_elements:
@@ -325,10 +325,14 @@ def choose_row(table:list[list[int], int], sample: list[int]) -> list[int]:
             continue
         sample_following_rows.append(row)
     sum_check = 0
+    # print()
+    # print(sample)
+    # print_table(sample_following_rows)
+    # print('ne')
     for i in sample_following_rows:
         sum_check += i[1]
     if sum_check > 1:
-        print(sample_following_rows)
+        # print(sample_following_rows)
         raise Exception("more than 1")
     if sum_check < 1:
         return
@@ -345,7 +349,7 @@ def traversal(n: int, visited:set[int] = set(), sample:list[int] = []):
     for p in network[n].parents:
         if p in visited:
             continue
-        traversal(p, visited)
+        traversal(p, visited, sample)
     if n not in visited:
         visited.add(n)
         # table = Reduce(network[n].factor, find_common(network[n].factor, sample))
@@ -360,7 +364,7 @@ def traversal(n: int, visited:set[int] = set(), sample:list[int] = []):
 def rejection_sampling(dependents: list[int], evidence: list[int]):
     global network
     samples = []
-    for i in range(1000):
+    for i in range(10000):
         sample = []
         visited = set()
         for j in network:
@@ -388,7 +392,8 @@ def rejection_sampling(dependents: list[int], evidence: list[int]):
         if continue_flag:
             continue
         dependent_samples += 1
-    
+    if dependent_samples == 0:
+        return 0
     return dependent_samples/len(samples_following_evidence)
 
 
@@ -447,13 +452,6 @@ def Solve(NetworkFile: str, QueryFile: str):
     for Query in Queries:
         print(query_processor(Query))
 
-def main():
-    NetworkFile = "b3.txt"
-    QueryFile = "q3.txt"
-    Solve(NetworkFile, QueryFile)
-
-# main()
-
 def enumeration_method(dependents, evidences): # for verification
     global network
 
@@ -500,70 +498,10 @@ def enumeration_method(dependents, evidences): # for verification
     print_table(ans1[0][1])
 
 
-
-text = """13
-1
-0.98 0.02
-3
-0.999 0.001
-2 1 3
-1 0
-0 1
-0 1
-0 1
-12
-0.999 0.001
-11 1 12
-1 0
-0 1
-0 1
-0 1
-13 11
-1 0
-0 1
-8 12
-1 0
-0 1
-5
-0.9 0.1
-6
-0.5 0.5
-4 2 5 6
-1 0
-0 1
-0 1
-1 0
-0.6 0.4
-0.4 0.6
-0.5 0.5
-1 0
-7 2 5 6
-0 1
-1 0
-1 0
-0 1
-0.4 0.6
-0.2 0.8
-0 1
-0.2 0.8
-10 4 7
-1 0
-1 0
-1 0
-1 0
-9 2
-1 0
-0 1"""
-
-build_network(text)
+def main():
+    NetworkFile = "b3.txt"
+    QueryFile = "q3.txt"
+    Solve(NetworkFile, QueryFile)
 
 
-text = "ve q 7 e ~2 3 5"
-print(query_processor(text))
-
-enumeration_method([7], [-2, 3, 5])
-
-
-# print(query_processor("rs "+text))
-
-# print_table(network[2].factor)
+main()
