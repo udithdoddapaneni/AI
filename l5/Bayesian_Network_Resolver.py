@@ -1,5 +1,6 @@
 
 import copy
+import random
 
 # how to store the tables?
 DEP = 0
@@ -116,9 +117,7 @@ def Join(table1: list[list[list[int], int]], table2: list[list[list[int], int]])
     for i in table1[0][0]:
         if i in table2[0][0]:
             common_elements.add(abs(i))
-    # if len(common_elements) == 0:
-    #     print("No common elements to join")
-    #     return
+
     ans = []
     if len(common_elements) == 0:
         # cartesian product
@@ -157,6 +156,7 @@ def Join(table1: list[list[list[int], int]], table2: list[list[list[int], int]])
     return ans
 
 def Sum(table: list[list[list[int], int]], variables: list[int]) -> list[list[int], int]: # table is a conjunctive table not a conditional probability table
+    
     e_p = {}
     for e, p in table:
         z = []
@@ -168,12 +168,14 @@ def Sum(table: list[list[list[int], int]], variables: list[int]) -> list[list[in
             e_p[t] += p
         else:
             e_p[t] = p
-    ans = [0]*len(e_p)
+    ans = [[] for i in range(len(e_p))]
     j = 0
     for i in e_p:
         ans[j] = [[k for k in i], e_p[i]]
         j += 1
     # print(table, variables)
+    if len(ans) == 0:
+        return []
     if len(ans[0][0]) == 0:
         return []
     return ans
@@ -199,6 +201,8 @@ def Normalize(table: list[list[int], int], evidence: list[list[int], int]) -> li
 
 def find_common(table: list[list[int], int], vars: list[int]) -> list[int]:
     cmm = []
+    if len(table) == 0:
+        return []
     k = [abs(i) for  i in table[0][0]]
     for i in vars:
         if abs(i) in k:
@@ -302,8 +306,90 @@ def variable_elimination(dependents: list[int], evidences: list[int]):
     evidence_joint_form = joint_distribution(evidences)
     # print_table(evidence_joint_form)
     ans = Normalize(full_joint_form, evidence_joint_form)
+    if len(ans) == 0:
+        return 0
     # print(ans)
     return ans[0][1]
+
+def choose_row(table:list[list[int], int], sample: list[int]) -> list[int]:
+    number = random.random() # gives a random number between [0,1]
+    cumulative = 0
+    sample_following_rows = []
+    for row in table:
+        continue_flag = 0
+        for i in sample:
+            if -i in row[0]:
+                continue_flag = 1
+                break
+        if continue_flag:
+            continue
+        sample_following_rows.append(row)
+    sum_check = 0
+    for i in sample_following_rows:
+        sum_check += i[1]
+    if sum_check > 1:
+        print(sample_following_rows)
+        raise Exception("more than 1")
+    if sum_check < 1:
+        return
+    for row in sample_following_rows:
+        cumulative += row[1]
+        if number <= cumulative:
+            return row[0]
+
+
+def traversal(n: int, visited:set[int] = set(), sample:list[int] = []):
+    global network
+    if n in visited:
+        return
+    for p in network[n].parents:
+        if p in visited:
+            continue
+        traversal(p, visited)
+    if n not in visited:
+        visited.add(n)
+        # table = Reduce(network[n].factor, find_common(network[n].factor, sample))
+        table = choose_row(network[n].factor, sample)
+        if table is None:
+            return
+        for i in table:
+            if i not in sample:
+                sample.append(i)
+                continue
+
+def rejection_sampling(dependents: list[int], evidence: list[int]):
+    global network
+    samples = []
+    for i in range(1000):
+        sample = []
+        visited = set()
+        for j in network:
+            traversal(j, visited, sample)
+        samples.append(sample)
+    
+    samples_following_evidence = []
+    for i in samples:
+        continue_flag = 0
+        for j in evidence:
+            if j not in i:
+                continue_flag = 1
+                break
+        if continue_flag:
+            continue
+        samples_following_evidence.append(i)
+    
+    dependent_samples = 0 # no of these samples having given dependents
+    for i in samples_following_evidence:
+        continue_flag = 0
+        for j in dependents:
+            if j not in i:
+                continue_flag = 1
+                break
+        if continue_flag:
+            continue
+        dependent_samples += 1
+    
+    return dependent_samples/len(samples_following_evidence)
 
 
 def query_processor(query:str):
@@ -328,7 +414,23 @@ def query_processor(query:str):
         return variable_elimination(dependents, evidences)
 
     else:
-        return "Not implemented"
+        dependent_str, evidence_str = query[5:].split('e')
+        dependent_eles, evidence_eles = dependent_str.split(), evidence_str.split()
+        dependents = []
+        evidences = []
+        for i in dependent_eles:
+            if i[0] == '~':
+                dependents.append(-int(i[1:]))
+            else:
+                dependents.append(int(i))
+        
+        for i in evidence_eles:
+            if i[0] == '~':
+                evidences.append(-int(i[1:]))
+            else:
+                evidences.append(int(i))
+
+        return rejection_sampling(dependents, evidences)
     
 
 
@@ -345,16 +447,59 @@ def Solve(NetworkFile: str, QueryFile: str):
     for Query in Queries:
         print(query_processor(Query))
 
-
-
-
-
 def main():
     NetworkFile = "b3.txt"
     QueryFile = "q3.txt"
     Solve(NetworkFile, QueryFile)
 
 # main()
+
+def enumeration_method(dependents, evidences): # for verification
+    global network
+
+    req_vars = dependents + evidences
+    all_elemenets = set()
+    all_evidences_related = set()
+    for i in network:
+        all_elemenets.add(i)
+        all_evidences_related.add(i)
+    x1 = []
+    for i in all_elemenets:
+        x1 = Join(network[i].factor, x1)
+    x2 = []
+    for i in all_evidences_related:
+        x2 = Join(network[i].factor, x2)
+
+    pure_vars = {abs(i) for i in req_vars}
+    pure_evidences = {abs(i) for i in evidences}
+
+    hidden_vars = []
+    hidden_evidences = []
+    for i in all_elemenets:
+        if i not in pure_vars:
+            hidden_vars.append(i)
+    
+    for i in all_evidences_related:
+        if i not in pure_evidences:
+            hidden_evidences.append(i)
+
+    y1 = Reduce(x1, find_common(x1, req_vars))
+    y2 = Reduce(x2, find_common(x2, evidences))
+
+    z1 = Sum(y1, hidden_vars)
+    z2 = Sum(y2, hidden_evidences)
+
+
+    ans1 = Normalize(z1, z2)
+    if len(ans1) == 0:
+        print(0)
+        return
+    if len(ans1[0]) == 0:
+        print(0)
+        return
+    print_table(ans1[0][1])
+
+
 
 text = """13
 1
@@ -412,12 +557,13 @@ text = """13
 
 build_network(text)
 
-query = "ve q ~2 3 7 e 5"
-# print_table((Join(Reduce(network[3].factor, [3]), network[1].factor)))
-# print()
-# print_table(Reduce(network[2].factor, [-2, 3]))
 
-# print_table(network[6].factor)
-# query = "ve q ~2 3 7 ~6 5 e"
-z = query_processor(query)
-print(z)
+text = "ve q 7 e ~2 3 5"
+print(query_processor(text))
+
+enumeration_method([7], [-2, 3, 5])
+
+
+# print(query_processor("rs "+text))
+
+# print_table(network[2].factor)
