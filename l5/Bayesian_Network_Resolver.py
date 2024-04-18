@@ -3,22 +3,21 @@ import copy
 import random
 
 # how to store the tables?
-DEP = 0
-EVD = 1
-TAB = 2
+DEP = 0 # key for dependencies in the corresponding term
+EVD = 1 # key for evidences in the corresponding term
+TAB = 2 # key for the corresponding table of the term
 
 class node:
 
     def __init__(self, variable) -> None:
         self.variable: int = variable # variable must be positive
         self.factor: list[list[int], int] = [] # (case vector, probability)
-        self.parents: list[node] = [] # parents will be filled later
-        self.children: list[node] = []
+        self.parents: list[node] = [] # if the node describes P(A|B) then parent is B here
 
 
-network: dict[int,node] = {}
+network: dict[int,node] = {} # Bayesian network initialized as an empty dictionary
 
-def build_table(arr: list[int], i) -> list[list[int]]:
+def build_table(arr: list[int], i) -> list[list[int]]: # builds a table with empty probability column for given variables
     tab:list[list[int]] = []
     if i == len(arr):
         return []
@@ -32,7 +31,7 @@ def build_table(arr: list[int], i) -> list[list[int]]:
     return tab
 
 
-def build_network(data: str):
+def build_network(data: str): # builds the bayesian network
     global network
 
     inputs:list[str] = data.split("\n")
@@ -53,7 +52,6 @@ def build_network(data: str):
 
         network[curr.variable] = curr
 
-        # cases:list[list[int]] = build_table(j, len(j)-1)
         cases: list[list[int]] = []
         if len(j) == 1:
             cases.append([j[0]])
@@ -99,6 +97,9 @@ class operations:
 
     @staticmethod
     def Reduce(table: list[list[list[int], int]], variable_values: list[int]) -> list[list[int], int]: # if variable_value is positive then the variable is true, else false
+        """
+        returns the table containing rows that have the given variable truth values
+        """
         ans = []
         for i in table:
             continue_flag = 0
@@ -111,7 +112,10 @@ class operations:
         return ans
 
     @staticmethod
-    def Join(table1: list[list[list[int], int]], table2: list[list[list[int], int]]) -> list[list[int], int]: # gives a conjunctive table: P(A/B) * P(B) = P(A, B)
+    def Join(table1: list[list[list[int], int]], table2: list[list[list[int], int]]) -> list[list[int], int]:
+        """
+        Joins two tables and returns a new factor
+        """
         if len(table1) == 0:
             return table2
         if len(table2) == 0:
@@ -123,13 +127,10 @@ class operations:
 
         ans = []
         if len(common_elements) == 0:
-            # cartesian product
             for e1, p1 in table1:
                 for e2, p2 in table2:
                     z = [e1+e2, p1*p2]
                     ans.append(z)
-            # print(ans)
-            # print('hh')
             return ans
 
         for e1, p1 in table1:
@@ -157,8 +158,12 @@ class operations:
         return ans
 
     @staticmethod
-    def Sum(table: list[list[list[int], int]], variables: list[int]) -> list[list[int], int]: # table is a conjunctive table not a conditional probability table
+    def Sum(table: list[list[list[int], int]], variables: list[int]) -> list[list[int], int]:
+        """
+        Sum(P(A,B,D|C), [B,D]) = P(A|C)
 
+        sums out the given variables
+        """
         e_p = {}
         for e, p in table:
             z = []
@@ -183,6 +188,10 @@ class operations:
     
     @staticmethod
     def Normalize(table: list[list[int], int], evidence: list[list[int], int]) -> list[list[int], int]: # takes joint probability distribution table of given variables and evidences and does normalization
+        """
+        Normalize(P(A,B), P(B)) = P(A|B)
+        Normalizes the given table by given evidences and returns the corresponding conditional probability table
+        """
         ans = []
         for e1, p1 in table:
             for e2, p2 in evidence:
@@ -203,6 +212,10 @@ class operations:
 
     @staticmethod
     def find_common(table: list[list[int], int], vars: list[int]) -> list[int]:
+        """
+        Helper function used to find common variables in the table and given list of variables.
+        It is used during reduction operations in the function joint_distribution
+        """
         cmm = []
         if len(table) == 0:
             return []
@@ -216,6 +229,20 @@ class VariableElimination:
 
     @staticmethod
     def get_all_related(ele: int, all_elements: set):
+        """"
+        Recursively gets all ancestors of given element and adds them into the set all_elements.
+
+             1
+            /  |
+           3    4
+             /  |
+            5    6
+            |   /
+            |  /
+             7
+        
+        here ancestors of 7 are: 5, 6, 4, 1
+        """
         global network
         if ele == None:
             return
@@ -225,6 +252,11 @@ class VariableElimination:
 
     @staticmethod
     def joint_distribution(req_vars: list[int]):
+        """
+        first it gets all the factors required to get a joint distribution of all the elements in req_vars list.
+        then it reduces them accordingly
+        then by variable elimination method it finds the joint distribution of all the elements in req_vars
+        """
         global network
         all_elements = set()
         pure_vars = {abs(i) for i in req_vars}
@@ -247,12 +279,14 @@ class VariableElimination:
             query.append(z)
 
         while len(hidden_vars) > 0:
+            # at each iteration it joins the elements containing a particular hidden variable, and then sums the hidden variable out
+            # this runs until there are no hidden variables
             x = hidden_vars.pop()
-            f = {DEP: set(), EVD: set(), TAB: []}
-            to_remove_from_query = []
+            f = {DEP: set(), EVD: set(), TAB: []} # a empty factor is created
+            to_remove_from_query = [] # after joining some terms, say t1, t2, t3, we will append the newly formed factor f into the query list and remove t1, t2 and t3 from there
             for i in query:
                 if len(f[TAB]) == 0:
-                    if x in i[DEP] or x in i[EVD]:
+                    if x in i[DEP] or x in i[EVD]: # initializing the factor with a random table containing the hidden variable
                         f[TAB] = i[TAB]
                         f[DEP] = i[DEP]
                         f[EVD] = i[EVD]
@@ -260,7 +294,7 @@ class VariableElimination:
                     else:
                         continue
                 else:
-                    if len(i[EVD] & f[DEP]) > 0 or len(i[DEP] & f[EVD]) > 0 or len(i[DEP] & f[DEP]) > 0 or len(i[EVD] & f[EVD]) > 0:
+                    if len(i[EVD] & f[DEP]) > 0 or len(i[DEP] & f[EVD]) > 0 or len(i[DEP] & f[DEP]) > 0 or len(i[EVD] & f[EVD]) > 0: # simulating the join operations
                         stab_dep = copy.deepcopy(f[DEP])
                         stab_evd = copy.deepcopy(f[EVD])
                         f[DEP] |= i[DEP]
@@ -294,13 +328,18 @@ class VariableElimination:
 
         ans = []
         for i in query:
+            # joining the left over factors
             ans = operations.Join(i[TAB], ans)
         return ans
 
     @staticmethod
     def variable_elimination(dependents: list[int], evidences: list[int]):
+        """
+        performs variable elimination method.
+        first finds joint distribution of dependents + evidences
+        then normalizes it with the joint distribution of evidences
+        """
         global network
-        all_elements = set()
         req_vars = dependents+evidences
         
         full_joint_form = VariableElimination.joint_distribution(req_vars)
@@ -314,6 +353,9 @@ class RejectionSampling:
 
     @staticmethod
     def choose_row(table:list[list[int], int], sample: list[int]) -> list[int]:
+        """
+        randomly chooses one row among the rows in the table that are obeying the already sampled conditions
+        """
         number = random.random() # gives a random number between [0,1]
         cumulative = 0
         sample_following_rows = []
@@ -329,10 +371,13 @@ class RejectionSampling:
         sum_check = 0
         for i in sample_following_rows:
             sum_check += i[1]
+
+        # sum check
         if sum_check > 1:
             raise Exception("more than 1")
         if sum_check < 1:
-            return
+            raise Exception("less than 1")
+        
         for row in sample_following_rows:
             cumulative += row[1]
             if number <= cumulative:
@@ -340,6 +385,10 @@ class RejectionSampling:
 
     @staticmethod
     def traversal(n: int, visited:set[int] = set(), sample:list[int] = []):
+        """
+        recursively traverses the subgraph containing n and its dependencies and does sampling.
+        factors are sampled in the order of increasing dependencies (or parents)
+        """
         global network
         if n in visited:
             return
@@ -357,10 +406,13 @@ class RejectionSampling:
                     sample.append(i)
                     continue
     @staticmethod
-    def rejection_sampling(dependents: list[int], evidence: list[int]):
+    def rejection_sampling(dependents: list[int], evidence: list[int], no_of_sample: int) -> float:
+        """
+        performs rejection sampling
+        """
         global network
         samples = []
-        for i in range(10000):
+        for i in range(no_of_sample):
             sample = []
             visited = set()
             for j in network:
@@ -378,7 +430,7 @@ class RejectionSampling:
                 continue
             samples_following_evidence.append(i)
         
-        dependent_samples = 0 # no of these samples having given dependents
+        dependent_samples = 0 # number of these samples having given dependents
         for i in samples_following_evidence:
             continue_flag = 0
             for j in dependents:
@@ -393,6 +445,16 @@ class RejectionSampling:
         return dependent_samples/len(samples_following_evidence)
 
 def enumeration_method(dependents, evidences): # for verification of solution
+    """
+    I have used this to debug my code and verify my solution.
+    You may use this to do the same.
+    First joins all the tables in the network.
+    Then it reduces the joint table.
+    Then it sums out hidden variables.
+    This way it finds out two factors: one with dependents + evidences
+    another with just evidences.
+    Then it does factorization and finds the probability
+    """
     global network
     req_vars = dependents + evidences
     all_elemenets = set()
@@ -435,6 +497,9 @@ def enumeration_method(dependents, evidences): # for verification of solution
     return ans1[0][1]
 
 def query_processor(query:str):
+    """
+    simple query processor
+    """
     global network
     if query[:2] == 've': # variable elimination
         dependent_str, evidence_str = query[5:].split('e')
@@ -470,9 +535,13 @@ def query_processor(query:str):
                 evidences.append(-int(i[1:]))
             else:
                 evidences.append(int(i))
-        return RejectionSampling.rejection_sampling(dependents, evidences)
+        return RejectionSampling.rejection_sampling(dependents, evidences, 10000)
+    
 
 def Solve(NetworkFile: str, QueryFile: str):
+    """
+    builds network from NetworkFile and finds the corresponding results to the queries in QueryFile
+    """
     global network
     network.clear()
     file = open(NetworkFile, 'r')
@@ -482,13 +551,20 @@ def Solve(NetworkFile: str, QueryFile: str):
     file = open(QueryFile, 'r')
     Queries = file.read().strip().split("\n")
     file.close()
+    
+    file = open("OUTPUT.txt", 'w')
     for Query in Queries:
-        print(query_processor(Query))
+        answer = query_processor(Query)
+        print(answer)
+        file.write(str(answer)+"\n")
+
+    file.close()
 
 def main():
-    NetworkFile = "b3.txt"
-    QueryFile = "q3.txt"
+    NetworkFile = "b1.txt"
+    QueryFile = "q1.txt"
     Solve(NetworkFile, QueryFile)
 
 
-main()
+if __name__ == "__main__": # so that this doesn't get run when imported in convergence_calculator.py
+    main()
