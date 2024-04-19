@@ -8,7 +8,7 @@ def error_vs_no_samples_plot(convergence_table: list):
     for i in convergence_table:
         x_axis.append(i[0])
         y_axis.append(i[3])
-
+    
     mat.xlabel("no.of samples")
     mat.ylabel("error percentage")
 
@@ -90,3 +90,4 @@ if __name__ == "__main__":
         print(f"no.of samples: {t[0]} ; Actual Probability: {t[1]} ; Estimated Probability: {t[2]} ; Error Percentage: {t[3]}")
 
     convergence(convergence_table)
+    error_vs_no_samples_plot(convergence_table)
